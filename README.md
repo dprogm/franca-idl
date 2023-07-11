@@ -1,0 +1,1 @@
+The goal is to provide a fully compliant Franca IDL parser as well as libraries for model validation and transformation.

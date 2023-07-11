@@ -1,0 +1,129 @@
+//------------------------------------------------------------------------
+// Basic Definitions
+//------------------------------------------------------------------------
+
+ws = _{ " " | "\t" | "\r" | "\n" }
+// Franca Identifier
+id = @{ "^"? ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+// Franca Identifier With Selector
+id_with_selector = { id  ~ (":" ~ id)? }
+// Franca Integer
+int = @{ ASCII_DIGIT+ }
+// TODO: This needs to be refined.
+char = @{ ASCII_ALPHA | "." }
+// Franca String
+string = @{ ("\"" ~ char* ~ "\"") | ("'" ~ char* ~ "'") }
+// Franca Fully Qualified Name
+fqn = @{ id ~ ("." ~ id)* }
+
+qualified_element_ref = { "TODO" }
+
+//------------------------------------------------------------------------
+// Franca Expressions
+//------------------------------------------------------------------------
+
+additive_expression = { "TODO" }
+
+initializer_expression = { "TODO" }
+
+logical_or_expression = { "TODO" }
+
+//------------------------------------------------------------------------
+// Franca Type System
+//------------------------------------------------------------------------
+
+integer_interval = { "TODO" }
+// Franca Basic Data Types
+basic_type_id = { "undefined" | "Int8" | "UInt8" | "Int16" | "UInt16" | "Int32" | "UInt32" | "Int64" | "UInt64" | "Boolean" | "String" | "Float" | "Double" | "ByteBuffer" }
+// Franca Field
+field = { type_ref ~ "[]"? ~ id }
+// Franca Array Type
+array_type = { "public"? ~ "array" ~ id ~ "of" ~ type_ref }
+// Franca Enumerator
+enumerator = { id ~ ("=" ~ additive_expression)? }
+// Franca Enumeration Type
+enumeration_type = { "public"? ~ "enumeration" ~ id ~ ("extends" ~ (enumeration_type | fqn))? ~ "{" ~ (enumerator ~ ("," ~ enumerator)*)? ~"}" }
+// Franca Enumeration Type Body
+enumeration_type_body = { "TODO" }
+// Franca Union Type
+union_type = { "public"? ~ "union" ~ id ~ ("extends" ~ (union_type | fqn))? ~ "{" ~ field* ~ "}" }
+// Franca Map Type
+map_type = { "public"? ~ "map" ~ id ~ "{" ~ type_ref ~ "to" ~ type_ref ~ "}" }
+// Franca Type Def
+type_def = { "public"? ~ "typedef" ~ id ~ "is" ~ type_ref }
+// Franca Struct Type
+struct_type = { "public"? ~ "struct" ~ id ~ (("extends" ~ (struct_type | fqn)) | "polymorphic")? ~ "{" ~ field* ~ "}" }
+// Franca Type
+type = { array_type | enumeration_type | struct_type | union_type | map_type | type_def }
+// Franca Type Reference
+type_ref = { basic_type_id | (type | fqn) | integer_interval }
+// Franca Constant
+constant = { "const" ~ ws ~  type_ref ~ "[]"? ~ id ~ "=" ~ initializer_expression }
+// Franca Version
+version = { "{" ~ ws* ~ "major" ~ ws+ ~ int ~ ws+ ~ "minor" ~ ws+ ~ int ~ ws* ~ "}"}
+// Franca Type Collection
+type_collection = { "typeCollection" ~ ws+ ~ id ~ ws* ~ "{" ~ ws* ~ ("version" ~ ws* ~ version)? ~ (constant | type)* ~ "}" }
+
+//------------------------------------------------------------------------
+// Franca Interface
+//------------------------------------------------------------------------
+
+// Franca Interface Attribute
+// TODO: Support the following specifier:
+// * readonly
+// * noRead
+// * noSubscriptions
+attribute = { "attribute" ~ type_ref ~ "[]"? ~ id }
+// Franca Argument
+argument = { type_ref ~ "[]"? ~ id }
+// Franca Method
+method = { "method" ~ ws+ ~ id ~ (ws* ~ ":" ~ ws* ~ id)? ~ (ws+ ~ "fireAndForget")? ~ ws* ~ "{" ~ ("in" ~ "{" ~ argument* ~ "}")? ~ ("out" ~ "{" ~ argument* ~ "}")? ~ ("error" ~ ((enumeration_type | fqn) | enumeration_type_body))? ~ "}" }
+// Franca Broadcast
+broadcast = { "broadcast" ~ id ~ (":" ~ id)? ~ "selective"? ~ "{" ~ ("out" ~ "{" ~ argument* ~ "}")? ~ "}" }
+
+managed_interfaces = { "manages" ~ (ws+ ~ (interface | fqn)) ~ (ws* ~ "," ~ ws* ~ (interface | fqn))* }
+// Franca Interface
+// Note: Since constant and type definitions after the
+// contract are deprecated since version 0.9.1 they are
+// not part of the grammar.
+interface = { "interface" ~ ws+ ~ id ~ (ws+ ~ "extends" ~ (ws+ ~ (interface | fqn)))? ~ managed_interfaces ~ "{" ~ ("version" ~ version)? ~ (attribute | method | broadcast | constant | type)* ~ contract? ~ "}" }
+
+//------------------------------------------------------------------------
+// Franca Contract
+//------------------------------------------------------------------------
+
+// Franca Declaration
+declaration = { type_ref ~ "[]"? ~ id ~ ("=" ~ initializer_expression)? }
+// Franca Events
+event_on_if = { ("call" ~ (method | id_with_selector)) | ("respond" ~ (method | id_with_selector)) | ("error" ~ (method | id_with_selector)) | ("signal" ~ (broadcast | id_with_selector)) | ("set" ~ (attribute | id) | ("update" ~ (attribute | id))) }
+// Franca Trigger
+trigger = { event_on_if }
+// Franca Guard
+guard = { "[" ~ logical_or_expression ~ "]" }
+// Franca Assignment
+assignment = { qualified_element_ref ~ "=" ~ logical_or_expression }
+// Franca If Statement
+if_statement = { "if" ~ "(" ~ logical_or_expression ~ ")" ~ statement ~ ("else" ~ statement)? }
+// Franca Statement
+statement = { assignment | if_statement | block }
+// Franca Block
+block = { "{" ~ statement* ~ "}" }
+// Franca Transition
+transition = { "on" ~ trigger ~ guard? ~ "->" ~ (state | id) ~ block? }
+// Franca State
+state = { "state" ~ id ~ "{" ~ transition* ~ "}" }
+// Franca State Graph
+state_graph = { "{" ~ "initial" ~ (state | id) ~ state* ~ "}" }
+// Franca contract
+contract = { "contract" ~ "{" ~ ("vars" ~ "{" ~ (declaration ~ ";"?)* ~ "}")? ~ "PSM" ~ state_graph ~ "}" }
+
+//------------------------------------------------------------------------
+// Franca Model
+//------------------------------------------------------------------------
+
+imported_fqn = { fqn ~ ("." ~ "*")? }
+// Franca Import
+import = { "import" ~ ws+ ~ imported_fqn ~ ws+ ~ ("from" | "model") ~ ws+ ~ string }
+// Franca Model
+// Note: This is usually the start rule.
+model = { SOI ~ "package" ~ ws+ ~ fqn ~ (ws+ ~ import)* ~ (ws+ ~ (type_collection | interface) ~ (ws* ~ (type_collection | interface))*)? ~ EOI}

@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+  "franca-idl",
+  "example",
+]
